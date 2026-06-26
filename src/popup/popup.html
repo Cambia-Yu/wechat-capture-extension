@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- 头部 -->
+    <header class="header">
+      <span class="logo">📥</span>
+      <h1>微信文章抓取</h1>
+    </header>
+
+    <!-- 状态区 -->
+    <div class="status-area">
+      <div id="statusIcon" class="status-dot ready"></div>
+      <div id="statusText" class="status-text">就绪，点击按钮开始抓取</div>
+    </div>
+
+    <div id="modeSwitcher" class="mode-switcher" aria-label="保存方式">
+      <button class="mode-switch" data-mode="local" type="button">本地</button>
+      <button class="mode-switch" data-mode="feishu" type="button">飞书</button>
+      <button class="mode-switch" data-mode="both" type="button">两者</button>
+    </div>
+
+    <!-- 文章预览（提取后显示） -->
+    <div id="previewArea" class="preview-area hidden">
+      <div class="preview-card">
+        <div id="previewTitle" class="preview-title"></div>
+        <div class="preview-meta">
+          <span id="previewAuthor"></span>
+          <span class="dot">·</span>
+          <span id="previewTime"></span>
+        </div>
+        <div id="previewStats" class="preview-stats"></div>
+      </div>
+    </div>
+
+    <!-- 进度条 -->
+    <div id="progressArea" class="progress-area hidden">
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <div id="progressText" class="progress-text">正在提取...</div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="actions">
+      <div id="syncOptions" class="sync-options hidden">
+        <label class="mini-toggle-row" title="关闭后，同步到飞书时只生成文字文档，不上传或插入图片">
+          <span>同步图片</span>
+          <span class="mini-toggle">
+            <input type="checkbox" id="includeImages" checked>
+            <span class="mini-slider"></span>
+          </span>
+        </label>
+      </div>
+
+      <button id="btnCapture" class="btn btn-primary">
+        <span class="btn-icon">📥</span>
+        <span>抓取文章</span>
+      </button>
+      
+      <div id="downloadActions" class="download-actions hidden">
+        <button id="btnSync" class="btn btn-outline">
+          <span class="btn-icon">☁️</span>
+          <span>同步到飞书</span>
+        </button>
+      </div>
+
+      <div id="resultActions" class="result-actions hidden">
+        <div id="resultTabs" class="result-tabs hidden">
+          <button id="tabFeishu" class="result-tab active" data-panel="feishu">飞书</button>
+          <button id="tabLocal" class="result-tab" data-panel="local">本地</button>
+        </div>
+
+        <div id="feishuActions" class="action-panel hidden">
+          <button id="btnOpenFeishu" class="btn btn-outline">
+            <span class="btn-icon">↗</span>
+            <span>打开云文档</span>
+          </button>
+          <button id="btnCopyFeishu" class="btn btn-ghost">
+            <span class="btn-icon">⧉</span>
+            <span>复制链接</span>
+          </button>
+        </div>
+
+        <div id="localActions" class="action-panel hidden">
+          <button id="btnShowLocal" class="btn btn-outline">
+            <span class="btn-icon">⌕</span>
+            <span>打开文件夹</span>
+          </button>
+          <button id="btnCopyLocal" class="btn btn-ghost">
+            <span class="btn-icon">⧉</span>
+            <span>复制本地地址</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 错误信息 -->
+    <div id="errorArea" class="error-area hidden">
+      <div id="errorText" class="error-text"></div>
+    </div>
+
+    <!-- 底部 -->
+    <footer class="footer">
+      <button id="btnSettings" class="btn-link">⚙️ 设置</button>
+      <span class="version">v0.2.2</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

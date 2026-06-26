@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Packaged extension artifacts
+*.zip
+*.crx
+*.pem
+
+# Local secrets and environment overrides
+.env
+.env.*
+*.local
+*.secret
+*secret*.json
+*token*.json
+*credentials*.json
+
+# Logs and temporary files
+*.log
+tmp/
+temp/

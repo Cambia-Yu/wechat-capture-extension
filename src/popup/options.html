@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>微信文章抓取器 · 设置</title>
+<style>
+:root {
+  --green:#07C160; --green-light:#f0fff4; --blue:#1890ff; --blue-light:#e6f7ff;
+  --orange:#fa8c16; --orange-light:#fff7e6; --red:#ff4d4f;
+  --text:#1a1a1a; --text2:#666; --text3:#999; --border:#e8e8e8;
+  --bg:#f8f9fa; --card:#fff; --r:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  font-size:14px;color:var(--text);background:var(--bg);
+  padding:32px 20px 56px;max-width:760px;margin:0 auto;line-height:1.6;
+}
+.header{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+.header h1{font-size:21px;font-weight:700}
+.card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:22px 24px;margin-bottom:16px;
+}
+.card-hd{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.card-hd h2{font-size:16px;font-weight:600}.card-icon{font-size:20px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500;margin-left:8px}
+.tag-g{background:var(--green-light);color:var(--green)}
+.tag-b{background:var(--blue-light);color:var(--blue)}
+.tag-o{background:var(--orange-light);color:var(--orange)}
+
+/* 表单 */
+.fg{margin-bottom:16px}
+.fg label{display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:6px}
+.fg input,.fg select{width:100%;padding:9px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;background:#fafafa;transition:border-color .2s,box-shadow .2s}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(7,193,96,.08);background:#fff}
+.fg input[type=password]{font-family:'SF Mono',Menlo,monospace;letter-spacing:1px}
+.fg select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+
+/* 行内控件 */
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.row .fg{flex:1;margin-bottom:0}
+
+/* 切换开关 */
+.toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+.toggle input{display:none}
+.toggle .slider{position:absolute;top:0;left:0;right:0;bottom:0;background:#d9d9d9;border-radius:12px;transition:.2s;cursor:pointer}
+.toggle .slider::before{content:'';position:absolute;width:20px;height:20px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s}
+.toggle input:checked+.slider{background:var(--green)}
+.toggle input:checked+.slider::before{transform:translateX(20px)}
+
+/* 状态条 */
+.sbar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;min-height:40px}
+.sbar.ok{background:var(--green-light);border:1px solid #b7eb8f}
+.sbar.warn{background:var(--orange-light);border:1px solid #ffd591}
+.sbar.off{background:#fafafa;border:1px solid var(--border)}
+.sdot{width:10px;height:10px;border-radius:50%}
+.sdot.g{background:#52c41a}.sdot.o{background:var(--orange)}.sdot.x{background:#d9d9d9}
+
+/* 按钮 */
+.btns{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:9px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;font-family:inherit;transition:.2s;border:1.5px solid transparent;line-height:1.2}
+.btn-p{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-p:hover{background:#06ad56}
+.btn-o{background:#fff;color:var(--green);border-color:var(--green)}
+.btn-o:hover{background:var(--green-light)}
+.btn-g{background:#fff;color:var(--text2);border-color:var(--border)}
+.btn-g:hover{color:var(--green);border-color:var(--green)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Toast */
+.toast{position:fixed;top:20px;right:20px;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:500;color:#fff;opacity:0;transform:translateY(-8px);transition:.3s;z-index:1000;pointer-events:none}
+.toast.ok{background:var(--green)}.toast.err{background:var(--red)}.toast.show{opacity:1;transform:translateY(0)}
+
+/* 新手引导 */
+.guide-t{display:flex;align-items:center;gap:6px;color:var(--blue);cursor:pointer;font-size:13px;font-weight:500;user-select:none;margin-bottom:16px}
+.guide-t:hover{text-decoration:underline}
+.guide-t .arr{transition:transform .2s;display:inline-block}
+.guide-t.open .arr{transform:rotate(90deg)}
+.guide-s{overflow:hidden;transition:max-height .3s ease}
+.guide-s.collapsed{max-height:0}
+.step{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid #f5f5f5}
+.step:last-child{border-bottom:none}
+.sn{width:28px;height:28px;min-width:28px;border-radius:50%;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.sb{flex:1}.sb h4{font-size:14px;margin-bottom:4px}.sb p{font-size:13px;color:var(--text2);margin-bottom:4px}.sb a{color:var(--blue);font-size:13px}
+.sb code{background:#f5f5f5;padding:1px 6px;border-radius:4px;font-size:12px;color:#d4380d;font-family:'SF Mono',Menlo,monospace}
+.sb .hl{background:#fffbe6;padding:1px 4px;border-radius:3px;font-weight:500}
+
+.hr{border:none;border-top:1px solid var(--border);margin:18px 0}
+.hint{font-size:12px;color:var(--text3);line-height:1.6;margin-top:4px}
+.hint a{color:var(--blue)}
+
+/* 模式选择卡片 */
+.mode-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.mode-card{min-width:0;padding:12px 10px;border:1.5px solid var(--border);border-radius:8px;text-align:center;cursor:pointer;transition:.2s;background:#fafafa}
+.mode-card:hover{border-color:#9be7bc;background:#f8fffb}
+.mode-card.active{border-color:var(--green);background:var(--green-light)}
+.mode-card .mode-icon{font-size:21px;margin-bottom:5px;line-height:1}
+.mode-card .mode-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.mode-card .mode-desc{font-size:11px;color:var(--text3)}
+.mode-card.active .mode-desc{color:var(--green)}
+
+@media (max-width: 620px) {
+  body{padding:20px 12px 40px}
+  .card{padding:18px}
+  .mode-cards{grid-template-columns:1fr}
+  .row{align-items:stretch;flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<div class="header"><span style="font-size:26px">⚙️</span><h1>设置</h1></div>
+
+<!-- ==================== 保存方式 ==================== -->
+<div class="card">
+  <div class="card-hd">
+    <span class="card-icon">💾</span><h2>保存方式</h2>
+  </div>
+
+  <div class="mode-cards" id="modeCards">
+    <div class="mode-card active" data-mode="local">
+      <div class="mode-icon">📁</div>
+      <div class="mode-title">仅保存到本地</div>
+      <div class="mode-desc">ZIP + Markdown</div>
+    </div>
+    <div class="mode-card" data-mode="feishu">
+      <div class="mode-icon">☁️</div>
+      <div class="mode-title">仅同步到飞书</div>
+      <div class="mode-desc">云文档原位图文</div>
+    </div>
+    <div class="mode-card" data-mode="both">
+      <div class="mode-icon">📁＋☁️</div>
+      <div class="mode-title">本地 + 飞书</div>
+      <div class="mode-desc">本地包 + 云文档</div>
+    </div>
+  </div>
+
+  <div id="localOptions">
+    <div class="row" style="margin-bottom:14px">
+      <div class="fg">
+        <label>本地保存路径</label>
+        <input type="text" id="savePath" placeholder="微信文章存档" value="微信文章存档">
+        <p class="hint">文章将保存在「下载」文件夹的这个子目录中（留空则直接放在下载根目录）</p>
+      </div>
+    </div>
+    <div class="row">
+      <div class="fg">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>每次弹窗选择位置</span>
+          <span class="toggle"><input type="checkbox" id="showSaveDialog"><span class="slider"></span></span>
+        </label>
+        <p class="hint">关闭后文件自动保存到上述路径，无需每次手动选择</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ==================== 飞书同步 ==================== -->
+<div class="card">
+  <div class="card-hd">
+    <span class="card-icon">☁️</span><h2>飞书同步</h2>
+    <span class="tag tag-g">自动选择最优通道</span>
+  </div>
+
+  <p class="hint" style="margin-bottom:16px">
+    插件会自动选择可用通道：<b>lark-cli 后台服务</b> → <b>API 直连</b>。<br>
+    推荐：运行一次 <code>install.sh</code> 安装 lark-cli 后台服务，之后无需任何配置。
+  </p>
+
+  <!-- lark-cli 状态 -->
+  <div class="sbar off" id="companionBar"><span class="sdot x" id="companionDot"></span><span id="companionText">检测中...</span></div>
+  <p class="hint" style="margin-bottom:12px">
+    安装 lark-cli 后台服务（开机自启，一次运行永久有效）：<br>
+    <code>cd companion && bash install.sh</code>
+  </p>
+
+  <div class="hr"></div>
+
+  <!-- API 直连 -->
+  <div class="sbar off" id="apiBar"><span class="sdot x" id="apiDot"></span><span id="apiText">未配置</span></div>
+  <p class="hint" style="margin-bottom:12px">备选方案：配置飞书 App ID 和 Secret，无需本地服务。</p>
+
+  <div class="row" style="margin-bottom:12px">
+    <div class="fg"><label>App ID</label><input type="text" id="appId" placeholder="cli_a..." autocomplete="off"></div>
+    <div class="fg"><label>App Secret</label><input type="password" id="appSecret" placeholder="输入 App Secret" autocomplete="off"></div>
+  </div>
+  <div class="btns">
+    <button class="btn btn-o" id="btnTest">🔍 测试连接</button>
+    <button class="btn btn-p" id="btnSaveAPI">保存凭证</button>
+  </div>
+
+  <div class="hr"></div>
+  <div class="guide-t" id="guideT"><span class="arr">▶</span> 不知道怎么获取 App ID？展开教程</div>
+  <div class="guide-s collapsed" id="guideS">
+    <div class="step"><div class="sn">1</div><div class="sb"><h4>进入飞书开放平台</h4><p>打开 <a href="https://open.feishu.cn/app" target="_blank">open.feishu.cn/app</a></p></div></div>
+    <div class="step"><div class="sn">2</div><div class="sb"><h4>创建企业自建应用</h4><p>点击「创建企业自建应用」→ 填写名称 → 创建。</p></div></div>
+    <div class="step"><div class="sn">3</div><div class="sb"><h4>获取凭证</h4><p>左侧「凭证与基础信息」→ 复制 <span class="hl">App ID</span> 和 <span class="hl">App Secret</span>。</p></div></div>
+    <div class="step"><div class="sn">4</div><div class="sb"><h4>添加权限并发布</h4><p>权限管理搜索 <code>docx:document</code> 和 <code>drive:drive</code> → 应用发布 → 提交审核。</p></div></div>
+    <div class="step"><div class="sn">5</div><div class="sb"><h4>验证</h4><p>点击 <span class="hl">「🔍 测试连接」</span>，绿色即成功。</p></div></div>
+  </div>
+</div>
+
+<!-- ==================== 通知 ==================== -->
+<div class="card">
+  <div class="card-hd"><span class="card-icon">🔔</span><h2>通知</h2></div>
+  <div class="fg">
+    <label style="display:flex;align-items:center;justify-content:space-between">
+      <span>完成后显示系统通知</span>
+      <span class="toggle"><input type="checkbox" id="showNotification"><span class="slider"></span></span>
+    </label>
+    <p class="hint">抓取完成或失败时弹出 Chrome 通知</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="options.js"></script>
+</body>
+</html>

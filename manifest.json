@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "微信文章抓取器",
+  "version": "0.2.2",
+  "description": "一键抓取微信公众号文章，保存为 Markdown + 图片到本地，支持同步至飞书云文档",
+  "author": "WorkBuddy",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "微信文章抓取器"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://mp.weixin.qq.com/*",
+    "*://mmbiz.qpic.cn/*",
+    "*://mmbiz.qlogo.cn/*",
+    "*://*.qpic.cn/*",
+    "https://open.feishu.cn/*",
+    "http://localhost:8765/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://mp.weixin.qq.com/s/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "src/popup/options.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["src/lib/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
