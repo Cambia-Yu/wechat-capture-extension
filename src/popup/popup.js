@@ -11,6 +11,8 @@ let _saveMode = 'local';
 let _feishuDocUrl = '';
 let _localDownloadId = null;
 let _localPath = '';
+let _feishuDestination = {mode:'default', label:'默认位置', source:''};
+let _feishuDestinationFavorites = [];
 
 // ============================================================
 // 初始化
@@ -32,6 +34,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncOptions: $('syncOptions'),
     includeImages: $('includeImages'),
     modeSwitcher: $('modeSwitcher'),
+    destinationRow: $('destinationRow'),
+    destinationText: $('destinationText'),
+    btnChangeDestination: $('btnChangeDestination'),
+    destinationPanel: $('destinationPanel'),
+    destinationFavorites: $('destinationFavorites'),
+    destinationInput: $('destinationInput'),
+    btnUseMyLibrary: $('btnUseMyLibrary'),
+    btnUseDefaultDestination: $('btnUseDefaultDestination'),
+    btnSaveDestination: $('btnSaveDestination'),
   };
 
   // --- 当前标签 ---
@@ -47,10 +58,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- 读取保存配置 ---
-  const settings = await chrome.storage.local.get(['saveConfig', 'behaviorConfig']);
+  const settings = await chrome.storage.local.get(['saveConfig', 'behaviorConfig', 'feishuDestination', 'feishuDestinationFavorites']);
   _saveMode = (settings.saveConfig || {}).mode || 'local';
+  _feishuDestination = settings.feishuDestination || _feishuDestination;
+  _feishuDestinationFavorites = Array.isArray(settings.feishuDestinationFavorites) ? settings.feishuDestinationFavorites : [];
 
   renderSaveMode();
+  renderDestination();
+  renderDestinationFavorites();
 
   // --- 事件绑定 ---
   els.btnCapture.addEventListener('click', onCapture);
@@ -63,6 +78,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   els.tabLocal.addEventListener('click', () => selectResultPanel('local'));
   els.btnSettings.addEventListener('click', () => chrome.runtime.openOptionsPage());
   els.modeSwitcher.addEventListener('click', onModeSwitch);
+  els.btnChangeDestination.addEventListener('click', toggleDestinationPanel);
+  els.btnUseMyLibrary.addEventListener('click', () => {
+    els.destinationInput.value = 'my_library';
+    saveDestinationFromPanel();
+  });
+  els.btnUseDefaultDestination.addEventListener('click', () => {
+    els.destinationInput.value = '';
+    saveDestinationFromPanel();
+  });
+  els.btnSaveDestination.addEventListener('click', saveDestinationFromPanel);
+  els.destinationFavorites.addEventListener('click', switchFavoriteDestination);
 
   // --- 后台状态恢复 ---
   // 如果正在抓取中（popup 关闭后重开），显示进行中
@@ -189,7 +215,7 @@ async function onSync() {
       setStatus('error', '飞书未配置');
       resetSyncButton();
     } else {
-      showError(result.error || '飞书同步失败');
+      showError(result.authHint || result.error || '飞书同步失败');
       setStatus('error', '同步失败');
       resetSyncButton();
     }
@@ -237,10 +263,91 @@ function renderSaveMode() {
   if (_saveMode === 'local' && captureResult) showDownloadActions();
   else hideDownloadActions();
   updateSyncOptionsVisibility();
+  renderDestination();
 }
 
 function modeName(mode) {
   return ({local:'仅保存到本地', feishu:'仅同步到飞书', both:'本地 + 飞书'})[mode] || '仅保存到本地';
+}
+
+function renderDestination() {
+  const row = document.getElementById('destinationRow');
+  const text = document.getElementById('destinationText');
+  if (!row || !text) return;
+  row.classList.toggle('hidden', _saveMode === 'local');
+  document.getElementById('destinationPanel')?.classList.add('hidden');
+  text.textContent = _feishuDestination?.label || '默认位置';
+  text.title = _feishuDestination?.source || _feishuDestination?.label || '';
+}
+
+function toggleDestinationPanel() {
+  const panel = document.getElementById('destinationPanel');
+  const input = document.getElementById('destinationInput');
+  const willOpen = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !willOpen);
+  if (willOpen) {
+    input.value = _feishuDestination?.source || (_feishuDestination?.parentPosition === 'my_library' ? 'my_library' : '');
+    renderDestinationFavorites();
+    input.focus();
+  }
+}
+
+function renderDestinationFavorites() {
+  const box = document.getElementById('destinationFavorites');
+  if (!box) return;
+  const favorites = _feishuDestinationFavorites.slice(0, 5);
+  const activeKey = destinationKey(_feishuDestination);
+  box.classList.toggle('hidden', favorites.length === 0);
+  box.innerHTML = favorites.map((dest, index) => {
+    const label = escapeHtml(dest.label || dest.source || '飞书位置');
+    const active = destinationKey(dest) && destinationKey(dest) === activeKey ? ' active' : '';
+    return `<button class="destination-chip${active}" type="button" data-index="${index}" title="${escapeHtml(dest.source || label)}">${label}</button>`;
+  }).join('');
+}
+
+function destinationKey(dest) {
+  if (!dest || dest.mode === 'default') return '';
+  return dest.parentPosition || dest.parentToken || dest.source || '';
+}
+
+async function switchFavoriteDestination(event) {
+  const btn = event.target.closest('.destination-chip');
+  if (!btn) return;
+  const dest = _feishuDestinationFavorites[Number(btn.dataset.index)];
+  if (!dest) return;
+  _feishuDestination = dest;
+  await chrome.storage.local.set({feishuDestination: dest});
+  document.getElementById('destinationPanel')?.classList.add('hidden');
+  renderDestination();
+  setStatus('success', `保存位置已切换为${dest.label || '飞书位置'}`);
+}
+
+async function saveDestinationFromPanel() {
+  const input = document.getElementById('destinationInput').value.trim();
+  const saveBtn = document.getElementById('btnSaveDestination');
+  try {
+    saveBtn.disabled = true;
+    saveBtn.textContent = '检测中';
+    setStatus('working', '正在检测飞书保存位置...');
+    const result = await chrome.runtime.sendMessage({action:'resolveFeishuDestination', input});
+    _feishuDestination = result.destination || {mode:'default', label:'默认位置', source:''};
+    const s = await chrome.storage.local.get('feishuDestinationFavorites');
+    _feishuDestinationFavorites = Array.isArray(s.feishuDestinationFavorites) ? s.feishuDestinationFavorites : [];
+    renderDestination();
+    renderDestinationFavorites();
+    if (result.success) {
+      setStatus('success', `保存位置已设为${_feishuDestination.label || '默认位置'}`);
+    } else {
+      setStatus('error', '保存位置无法访问');
+      showError(result.authHint || result.error || '位置检测失败，已保存格式，实际同步时会再次验证。');
+    }
+  } catch (err) {
+    setStatus('error', '保存位置无效');
+    showError(err.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '保存';
+  }
 }
 
 function updateSyncButton() {
@@ -428,4 +535,10 @@ function hideError() { document.getElementById('errorArea').classList.add('hidde
 
 function setButton(btn, icon, text) {
   btn.innerHTML = `<span class="btn-icon">${icon}</span><span>${text}</span>`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
 }

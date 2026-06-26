@@ -100,6 +100,9 @@ body{
 .mode-card .mode-title{font-size:13px;font-weight:600;margin-bottom:2px}
 .mode-card .mode-desc{font-size:11px;color:var(--text3)}
 .mode-card.active .mode-desc{color:var(--green)}
+.favorite-destinations{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.favorite-destinations:empty{display:none}
+.favorite-destination{max-width:100%;padding:6px 10px;border:1px solid #b7eb8f;border-radius:999px;background:var(--green-light);color:var(--green);font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 @media (max-width: 620px) {
   body{padding:20px 12px 40px}
@@ -167,15 +170,34 @@ body{
 
   <p class="hint" style="margin-bottom:16px">
     插件会自动选择可用通道：<b>lark-cli 后台服务</b> → <b>API 直连</b>。<br>
-    推荐：运行一次 <code>install.sh</code> 安装 lark-cli 后台服务，之后无需任何配置。
+    推荐：运行一次 <code>install.sh</code> 安装 lark-cli 后台服务，之后由系统自动常驻。
   </p>
 
   <!-- lark-cli 状态 -->
   <div class="sbar off" id="companionBar"><span class="sdot x" id="companionDot"></span><span id="companionText">检测中...</span></div>
   <p class="hint" style="margin-bottom:12px">
-    安装 lark-cli 后台服务（开机自启，一次运行永久有效）：<br>
+    Chrome 插件不能直接启动本机进程。运行安装脚本一次后，macOS launchd 会在登录时启动并保持服务运行：<br>
     <code>cd companion && bash install.sh</code>
   </p>
+
+  <div class="hr"></div>
+
+  <!-- 保存位置 -->
+  <div class="sbar off" id="destBar"><span class="sdot x" id="destDot"></span><span id="destText">默认位置</span></div>
+  <div class="fg">
+    <label>飞书保存位置</label>
+    <input type="text" id="destinationInput" placeholder="粘贴飞书文件夹链接、知识库节点链接；或填写 my_library">
+    <p class="hint">首页可以临时更换。这里适合固定常用位置：飞书文件夹链接、知识库中某个节点链接，或 <code>my_library</code>（我的文档库）。</p>
+  </div>
+  <div class="btns">
+    <button class="btn btn-o" id="btnTestDestination">🔍 检测位置</button>
+    <button class="btn btn-p" id="btnSaveDestination">保存位置</button>
+    <button class="btn btn-g" id="btnResetDestination">恢复默认</button>
+  </div>
+  <div id="favoriteDestinations" class="favorite-destinations"></div>
+  <div class="btns" id="favoriteActions" style="display:none">
+    <button class="btn btn-g" id="btnClearFavorites">清空常用位置</button>
+  </div>
 
   <div class="hr"></div>
 

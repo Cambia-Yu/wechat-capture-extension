@@ -98,6 +98,120 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,.08);
 }
 
+.destination-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 10px;
+  margin: -4px 0 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.destination-label {
+  color: var(--text-hint);
+}
+.destination-text {
+  color: var(--text-secondary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.destination-change {
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.destination-panel {
+  margin: -6px 0 12px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.destination-help {
+  color: var(--text-hint);
+  font-size: 11px;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+.destination-favorites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.destination-chip {
+  max-width: 100%;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.destination-chip.active {
+  border-color: #b7eb8f;
+  background: var(--green-light);
+  color: var(--green);
+}
+.destination-input {
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fafafa;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.destination-input:focus {
+  outline: none;
+  border-color: var(--green);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(7,193,96,.08);
+}
+.destination-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mini-btn {
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mini-btn.primary {
+  color: #fff;
+  background: var(--green);
+  border-color: var(--green);
+  min-width: 54px;
+}
+
 /* ---- 预览卡片 ---- */
 .preview-card {
   background: var(--card); border: 1px solid var(--border);

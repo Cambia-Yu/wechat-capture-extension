@@ -6,16 +6,20 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const el = id => document.getElementById(id);
 
-  const s = await chrome.storage.local.get(['feishuConfig','saveConfig','behaviorConfig']);
+  const s = await chrome.storage.local.get(['feishuConfig','saveConfig','behaviorConfig','feishuDestination','feishuDestinationFavorites']);
   const fc = s.feishuConfig || {};
   const sc = s.saveConfig || {mode:'local',savePath:'微信文章存档',showSaveDialog:false};
   const bc = s.behaviorConfig || {showNotification:true};
+  const dest = s.feishuDestination || {mode:'default',label:'默认位置',source:''};
 
   el('appId').value = fc.appId || '';
   el('appSecret').value = fc.appSecret || '';
   el('savePath').value = sc.savePath || '';
+  el('destinationInput').value = dest.source || (dest.parentPosition === 'my_library' ? 'my_library' : '');
   el('showSaveDialog').checked = sc.showSaveDialog;
   el('showNotification').checked = bc.showNotification;
+  setDest(dest.checkStatus === 'ok' ? 'ok' : 'off', dest.label || '默认位置');
+  renderFavoriteDestinations(Array.isArray(s.feishuDestinationFavorites) ? s.feishuDestinationFavorites : []);
 
   const modeCards = el('modeCards');
   const localOptions = el('localOptions');
@@ -55,6 +59,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.disabled=false;btn.textContent='🔍 测试连接';
   });
 
+  el('btnSaveDestination').addEventListener('click',async()=>{
+    await saveDestination(true);
+  });
+
+  el('btnTestDestination').addEventListener('click',async()=>{
+    await saveDestination(false);
+  });
+
+  el('btnResetDestination').addEventListener('click',async()=>{
+    el('destinationInput').value = '';
+    await saveDestination(true);
+  });
+
+  el('btnClearFavorites').addEventListener('click',async()=>{
+    await chrome.runtime.sendMessage({action:'clearFeishuDestinationFavorites'});
+    renderFavoriteDestinations([]);
+    toast('常用位置已清空 ✓','ok');
+  });
+
   function autoSave(){
     chrome.storage.local.set({
       saveConfig:{mode:modeCards.querySelector('.mode-card.active')?.dataset.mode||'local',savePath:el('savePath').value.trim(),showSaveDialog:el('showSaveDialog').checked},
@@ -77,12 +100,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     const version = (detail.cliVersion || '').replace(/^lark-cli version\s*/,'');
     const companionMsg = st.companionAvailable
       ? `lark-cli ${version || ''} 运行中 · 将自动使用`
-      : '未检测到 · 运行 install.sh 安装后台服务';
+      : '未检测到 · 运行 install.sh 一次后会自动常驻';
     setCompanion(st.companionAvailable?'ok':'off',
       companionMsg,
       detail.cliPath || '');
   }
 });
+
+async function saveDestination(persistToast){
+  const input=document.getElementById('destinationInput').value.trim();
+  const btn=document.getElementById('btnTestDestination');
+  btn.disabled=true;btn.textContent='⏳ 检测中...';
+  try{
+    const r=await chrome.runtime.sendMessage({action:'resolveFeishuDestination',input});
+    const dest=r.destination||{};
+    const latest=await chrome.storage.local.get('feishuDestinationFavorites');
+    renderFavoriteDestinations(Array.isArray(latest.feishuDestinationFavorites)?latest.feishuDestinationFavorites:[]);
+    setDest(r.success?'ok':'warn', r.success ? `${dest.label||'默认位置'} · ${r.message||'可用'}` : (r.authHint||r.error||'检测失败'));
+    if(persistToast)toast(r.success?'保存位置成功 ✓':'位置无法访问，请检查链接或权限',r.success?'ok':'err');
+  }catch(e){
+    setDest('warn',e.message);
+    toast('保存位置失败','err');
+  }finally{
+    btn.disabled=false;btn.textContent='🔍 检测位置';
+  }
+}
+
+function renderFavoriteDestinations(favorites){
+  const box=document.getElementById('favoriteDestinations');
+  const actions=document.getElementById('favoriteActions');
+  if(!box||!actions)return;
+  const list=(favorites||[]).slice(0,5);
+  box.innerHTML=list.map(d=>`<span class="favorite-destination" title="${escapeHtml(d.source||'')}">${escapeHtml(d.label||d.source||'飞书位置')}</span>`).join('');
+  actions.style.display=list.length?'flex':'none';
+}
 
 function setApi(type,msg){
   const b=document.getElementById('apiBar'),d=document.getElementById('apiDot'),t=document.getElementById('apiText');
@@ -93,7 +144,15 @@ function setCompanion(type,msg,title=''){
   b.className='sbar '+type;d.className='sdot '+(type==='ok'?'g':'x');t.textContent=msg;
   b.title=title;
 }
+function setDest(type,msg){
+  const b=document.getElementById('destBar'),d=document.getElementById('destDot'),t=document.getElementById('destText');
+  b.className='sbar '+type;d.className='sdot '+(type==='ok'?'g':type==='warn'?'o':'x');t.textContent=msg;
+}
 function toast(msg,type){
   const t=document.getElementById('toast');t.className='toast '+type+' show';t.textContent=msg;
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }

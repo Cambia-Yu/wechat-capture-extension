@@ -25,6 +25,22 @@
       <button class="mode-switch" data-mode="both" type="button">两者</button>
     </div>
 
+    <div id="destinationRow" class="destination-row hidden">
+      <span class="destination-label">保存到</span>
+      <span id="destinationText" class="destination-text">默认位置</span>
+      <button id="btnChangeDestination" class="destination-change" type="button">更换</button>
+    </div>
+    <div id="destinationPanel" class="destination-panel hidden">
+      <div class="destination-help">粘贴飞书文件夹链接或知识库文档链接</div>
+      <div id="destinationFavorites" class="destination-favorites hidden"></div>
+      <input id="destinationInput" class="destination-input" type="text" placeholder="https://.../drive/folder/... 或 https://.../wiki/...">
+      <div class="destination-actions">
+        <button id="btnUseMyLibrary" class="mini-btn" type="button">我的文档库</button>
+        <button id="btnUseDefaultDestination" class="mini-btn" type="button">默认位置</button>
+        <button id="btnSaveDestination" class="mini-btn primary" type="button">保存</button>
+      </div>
+    </div>
+
     <!-- 文章预览（提取后显示） -->
     <div id="previewArea" class="preview-area hidden">
       <div class="preview-card">
@@ -108,7 +124,7 @@
     <!-- 底部 -->
     <footer class="footer">
       <button id="btnSettings" class="btn-link">⚙️ 设置</button>
-      <span class="version">v0.2.2</span>
+      <span class="version">v0.3.0</span>
     </footer>
   </div>
 

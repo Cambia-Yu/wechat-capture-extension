@@ -29,6 +29,9 @@ chrome.runtime.onMessage.addListener((req, sender, sendResp) => {
     case 'syncToFeishu': ok(handleFeishuSync(req.data, { includeImages: req.includeImages !== false })); return true;
     case 'checkFeishuStatus': ok(checkFeishuStatus()); return true;
     case 'testFeishuConnection': ok(testConnection(req.config)); return true;
+    case 'resolveFeishuDestination': ok(resolveAndStoreDestination(req.input || '')); return true;
+    case 'testFeishuDestination': ok(testFeishuDestination(req.destination)); return true;
+    case 'clearFeishuDestinationFavorites': ok(clearFeishuDestinationFavorites()); return true;
   }
 });
 
@@ -114,11 +117,11 @@ async function handleCapture(tabId, options = {}) {
     if (feishuResult.success) {
       result.feishuUrl = feishuResult.docUrl;
     } else {
-      result.feishuError = feishuResult.error || '飞书同步失败';
+      result.feishuError = feishuResult.authHint || feishuResult.error || '飞书同步失败';
       if (feishuResult.needConfig) result.needConfig = true;
       if (mode==='feishu') {
         await notify('同步失败', result.feishuError, false);
-        return {success:false, error:result.feishuError, needConfig:feishuResult.needConfig};
+        return {success:false, error:result.feishuError, authHint:feishuResult.authHint, needConfig:feishuResult.needConfig};
       }
     }
   }
@@ -186,14 +189,85 @@ function stripMarkdownImages(markdown) {
 }
 
 function buildFeishuPayload(data, options = {}) {
-  if (options.includeImages !== false) return data;
-  return {
+  const payload = options.includeImages !== false ? {...data} : {
     ...data,
     markdown: stripMarkdownImages(data.markdown || ''),
     images: [],
     imageCount: 0,
     feishuIncludeImages: false
   };
+  if (options.destination) payload.destination = options.destination;
+  return payload;
+}
+
+function parseFeishuDestination(input) {
+  const value = String(input || '').trim();
+  if (!value || value === 'default' || value === '默认') {
+    return {mode:'default', label:'默认位置', source:''};
+  }
+  if (value === 'my_library' || value === '我的文档库') {
+    return {mode:'parent_position', parentPosition:'my_library', label:'我的文档库', source:value};
+  }
+
+  const source = value.match(/^https?:\/\/[^\s]+/)?.[0] || value;
+  const folder = source.match(/\/drive\/folder\/([^/?#]+)/);
+  if (folder) return {mode:'parent_token', parentToken:folder[1], label:'飞书文件夹', source};
+  const wiki = source.match(/\/wiki\/([^/?#]+)/);
+  if (wiki) return {mode:'parent_token', parentToken:wiki[1], label:'知识库位置', source};
+  if (/^sp[a-zA-Z0-9_-]+/.test(source)) {
+    throw new Error('这个看起来是知识库空间 ID。请打开知识库里的具体页面/节点，再复制该页面的 /wiki/ 链接。');
+  }
+  const raw = source.match(/^([A-Za-z0-9_-]{8,})$/);
+  if (raw) return {mode:'parent_token', parentToken:raw[1], label:'指定位置', source};
+  throw new Error('请粘贴飞书文件夹链接、知识库节点链接，或填写 my_library');
+}
+
+function normalizeDestination(destination) {
+  if (!destination || destination.mode === 'default') return {mode:'default', label:'默认位置'};
+  if (destination.parentPosition) return {mode:'parent_position', parentPosition:destination.parentPosition, label:destination.label || '我的文档库', source:destination.source || ''};
+  if (destination.parentToken) return {mode:'parent_token', parentToken:destination.parentToken, label:destination.label || '指定位置', source:destination.source || ''};
+  return {mode:'default', label:'默认位置'};
+}
+
+async function resolveAndStoreDestination(input) {
+  const destination = parseFeishuDestination(input);
+  const checked = await testFeishuDestination(destination).catch(e => ({success:false, error:e.message}));
+  const merged = {
+    ...destination,
+    label: checked.success && checked.label ? checked.label : destination.label,
+    checkedAt: Date.now(),
+    checkStatus: checked.success ? 'ok' : 'warn',
+    checkMessage: checked.message || checked.error || ''
+  };
+  await chrome.storage.local.set({feishuDestination: merged});
+  if (checked.success) await rememberFeishuDestination(merged);
+  return {...checked, destination: merged, success: checked.success};
+}
+
+function destinationKey(destination) {
+  if (!destination || destination.mode === 'default') return '';
+  return destination.parentPosition || destination.parentToken || destination.source || '';
+}
+
+async function rememberFeishuDestination(destination) {
+  const key = destinationKey(destination);
+  if (!key) return;
+  const s = await chrome.storage.local.get('feishuDestinationFavorites');
+  const existing = Array.isArray(s.feishuDestinationFavorites) ? s.feishuDestinationFavorites : [];
+  const normalized = normalizeDestination(destination);
+  const item = {
+    ...normalized,
+    label: destination.label || normalized.label || '飞书位置',
+    source: destination.source || normalized.source || key,
+    lastUsedAt: Date.now()
+  };
+  const favorites = [item, ...existing.filter(d => destinationKey(d) !== key)].slice(0, 5);
+  await chrome.storage.local.set({feishuDestinationFavorites: favorites});
+}
+
+async function clearFeishuDestinationFavorites() {
+  await chrome.storage.local.set({feishuDestinationFavorites: []});
+  return {success:true};
 }
 
 function buildZipFiles(st,md,ims,art){
@@ -224,7 +298,9 @@ function buildZipFiles(st,md,ims,art){
 // ============================================================
 
 async function handleFeishuSync(data, options = {}) {
-  const payload = buildFeishuPayload(data, options);
+  const settings = await chrome.storage.local.get('feishuDestination');
+  const destination = normalizeDestination(settings.feishuDestination);
+  const payload = buildFeishuPayload(data, {...options, destination});
   const companionOk = await checkCompanionHealth();
   if (companionOk) {
     console.log('[飞书] lark-cli 通道');
@@ -253,7 +329,13 @@ async function syncViaCompanion(data) {
   try {
     const r = await fetch('http://localhost:8765/sync', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({title:data.title,markdown:data.markdown,images:data.images||[],sourceUrl:data.sourceUrl})
+      body:JSON.stringify({
+        title:data.title,
+        markdown:data.markdown,
+        images:data.images||[],
+        sourceUrl:data.sourceUrl,
+        destination:data.destination || {}
+      })
     });
     return await r.json();
   } catch(e) { return {success:false, error:'lark-cli 通信失败: '+e.message}; }
@@ -268,14 +350,14 @@ async function syncViaAPI(data) {
   }
   try {
     const token = await Feishu.token(c.appId, c.appSecret);
-    const doc = await Feishu.createDoc(token, data.title);
-    const appendResult = await Feishu.append(token, doc.document_id, data.markdown, data.images||[]);
+    const doc = await Feishu.createFromMarkdown(token, data);
     return {
       success:true,
-      docId:doc.document_id,
-      docUrl:`https://my.feishu.cn/docx/${doc.document_id}`,
-      imageCount:appendResult.imageCount,
-      imagePlacement:'inline_docx_blocks',
+      docId:doc.document_id || doc.token || '',
+      docUrl:doc.url || (doc.document_id ? `https://my.feishu.cn/docx/${doc.document_id}` : ''),
+      imageCount:(data.images||[]).length,
+      imagePlacement:'markdown_remote_url',
+      destinationLabel:data.destination?.label || '',
       title:data.title
     };
   } catch (e) {
@@ -292,6 +374,23 @@ const Feishu = {
   async token(aid,asec){
     const r=await fetch(`${this.BASE}/auth/v3/tenant_access_token/internal`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({app_id:aid,app_secret:asec})});
     const d=await r.json();if(d.code!==0)throw new Error(`获取token失败(${d.code}):${d.msg}`);return d.tenant_access_token;
+  },
+  markdownWithRemoteImages(markdown,images=[]){
+    let result=markdown||'';
+    for(const img of images){
+      if(!img.localName||!img.originalUrl)continue;
+      result=result.replaceAll(`](images/${img.localName})`, `](${img.originalUrl})`);
+      result=result.replaceAll(`](./images/${img.localName})`, `](${img.originalUrl})`);
+    }
+    return result;
+  },
+  async createFromMarkdown(token,data){
+    const body={content:this.markdownWithRemoteImages(data.markdown||'',data.images||[]),format:'markdown'};
+    const dest=normalizeDestination(data.destination);
+    if(dest.parentPosition)body.parent_position=dest.parentPosition;
+    if(dest.parentToken)body.parent_token=dest.parentToken;
+    const r=await fetch(`${this.BASE}/docs_ai/v1/documents`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();if(d.code!==0)throw new Error(`创建文档失败(${d.code}):${d.msg}`);return d.data.document || d.data;
   },
   async createDoc(token,title){
     const r=await fetch(`${this.BASE}/docx/v1/documents`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({title})});
@@ -339,6 +438,27 @@ const Feishu = {
   async insImg(token,docId,ft){await this.w(token,docId,docId,[{block_type:27,image:{token:ft,width:640}}])}
 };
 
+async function testFeishuDestination(destination) {
+  const dest = normalizeDestination(destination);
+  const companionOk = await checkCompanionHealth();
+  if (companionOk) {
+    try {
+      const r = await fetch('http://localhost:8765/destination/inspect', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({destination:dest})
+      });
+      return await r.json();
+    } catch(e) {
+      return {success:false, error:'位置检测服务不可用: '+e.message};
+    }
+  }
+  if (dest.mode === 'default' || dest.parentPosition || dest.parentToken) {
+    return {success:true, label:dest.label || '指定位置', message:'位置格式有效；未检测到 lark-cli，实际写入权限将在同步时验证。'};
+  }
+  return {success:false, error:'位置格式无效'};
+}
+
 // ============================================================
 // 状态查询
 // ============================================================
@@ -368,6 +488,7 @@ async function testConnection(cfg) {
 
 chrome.runtime.onInstalled.addListener(()=>{
   chrome.storage.local.get('feishuConfig',r=>{if(!r.feishuConfig)chrome.storage.local.set({feishuConfig:{appId:'',appSecret:''}})});
+  chrome.storage.local.get('feishuDestination',r=>{if(!r.feishuDestination)chrome.storage.local.set({feishuDestination:{mode:'default',label:'默认位置',source:''}})});
   chrome.storage.local.get('saveConfig',r=>{if(!r.saveConfig)chrome.storage.local.set({saveConfig:{mode:'local',savePath:'微信文章存档',showSaveDialog:false}})});
   chrome.storage.local.get('behaviorConfig',r=>{if(!r.behaviorConfig)chrome.storage.local.set({behaviorConfig:{showNotification:true}})});
 });

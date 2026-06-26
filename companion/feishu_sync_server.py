@@ -83,6 +83,29 @@ def _markdown_with_remote_images(markdown, images):
         result = result.replace(f'](./images/{local_name})', f']({original_url})')
     return result
 
+def _destination_args(destination):
+    destination = destination or {}
+    if destination.get('parentPosition'):
+        return ['--parent-position', destination['parentPosition']]
+    if destination.get('parentToken'):
+        return ['--parent-token', destination['parentToken']]
+    return []
+
+def _auth_hint(text):
+    text = text or ''
+    if 'auth login' in text or 'unauthorized' in text.lower() or 'permission' in text.lower() or 'scope' in text.lower():
+        return '请在插件设置中点击授权/检测，按提示完成飞书用户授权后重试。'
+    return ''
+
+def _destination_error_hint(text):
+    text = text or ''
+    lower = text.lower()
+    if '131005' in text or 'resolve wiki node failed: not found' in lower:
+        return '没有找到这个知识库节点。请粘贴知识库中某一篇页面/节点的链接，不要粘贴知识库空间首页、空间 ID；如果链接没错，请确认当前飞书用户有读取这个节点的权限。'
+    if 'not found' in lower:
+        return '没有找到这个保存位置。请检查链接是否完整，或确认当前飞书用户有访问权限。'
+    return ''
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._reply(200, {})
@@ -99,12 +122,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
-        if self.path != '/sync':
+        if self.path not in ('/sync', '/destination/inspect'):
             self.send_error(404); return
         try:
             cl = int(self.headers.get('Content-Length', 0))
             data = json.loads(self.rfile.read(cl))
-            result = self._sync(data)
+            result = self._sync(data) if self.path == '/sync' else self._inspect_destination(data)
             self._reply(200 if result.get('success') else 500, result)
         except Exception as e:
             self._reply(500, {'success': False, 'error': str(e)})
@@ -124,6 +147,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         title = data.get('title', '未命名')
         markdown = data.get('markdown', '')
         images = data.get('images', [])
+        destination = data.get('destination') or {}
         work = Path(tempfile.mkdtemp(prefix='wxcap_'))
         try:
             feishu_markdown = _markdown_with_remote_images(markdown, images)
@@ -139,13 +163,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     pass
             r = _run_lark_cli([
                 'docs', '+create', '--api-version', 'v2',
-                '--doc-format', 'markdown', '--content', '@article.md', '--as', 'user', '--json'
+                '--doc-format', 'markdown', '--content', '@article.md',
+                *_destination_args(destination),
+                '--as', 'user', '--json'
             ], cwd=work)
             if r.returncode != 0:
-                return {'success': False, 'error': f'lark-cli 失败: {r.stderr or r.stdout or "exit="+str(r.returncode)}'}
+                raw = r.stderr or r.stdout or "exit="+str(r.returncode)
+                return {'success': False, 'error': f'lark-cli 失败: {raw}', 'authHint': _auth_hint(raw)}
             info = _parse_json_output(r.stdout)
             if not info.get('ok'):
-                return {'success': False, 'error': f'lark-cli 错误: {json.dumps(info.get("error",{}), ensure_ascii=False)}'}
+                raw = json.dumps(info.get("error",{}), ensure_ascii=False)
+                return {'success': False, 'error': f'lark-cli 错误: {raw}', 'authHint': _auth_hint(raw)}
             doc = info['data']['document']
             result = {
                 'success': True,
@@ -154,6 +182,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 'imageCount': len(images),
                 'imagePlacement': 'inline_markdown_remote_url',
                 'title': title,
+                'destinationLabel': destination.get('label') or '',
             }
             if saved and len(saved) != len(images):
                 result['mediaWarning'] = f'{len(saved)}/{len(images)} images were available as local fallback files'
@@ -163,6 +192,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
         finally:
             try: shutil.rmtree(work)
             except Exception: pass
+
+    def _inspect_destination(self, data):
+        if not _LARK_CLI:
+            return {'success': False, 'error': 'lark-cli 未检测到，无法做真实权限检测'}
+        destination = data.get('destination') or {}
+        if not destination.get('parentToken') and not destination.get('parentPosition'):
+            return {'success': True, 'label': '默认位置', 'message': '将保存到飞书默认位置'}
+        if destination.get('parentPosition') == 'my_library':
+            return {'success': True, 'label': '我的文档库', 'message': '将保存到我的文档库'}
+
+        source = destination.get('source') or destination.get('parentToken') or ''
+        if source.startswith('http'):
+            r = _run_lark_cli(['drive', '+inspect', '--url', source, '--as', 'user', '--json'], timeout=20)
+            raw = r.stderr or r.stdout
+            if r.returncode != 0:
+                return {'success': False, 'error': _destination_error_hint(raw) or raw or '位置检测失败', 'authHint': _auth_hint(raw)}
+            info = _parse_json_output(r.stdout)
+            if not info.get('ok'):
+                raw = json.dumps(info.get('error', {}), ensure_ascii=False)
+                return {'success': False, 'error': _destination_error_hint(raw) or raw, 'authHint': _auth_hint(raw)}
+            data = info.get('data') or {}
+            return {
+                'success': True,
+                'label': data.get('title') or destination.get('label') or '飞书位置',
+                'message': '位置可访问',
+                'type': data.get('type') or data.get('obj_type') or '',
+                'token': data.get('token') or data.get('obj_token') or destination.get('parentToken') or ''
+            }
+
+        r = _run_lark_cli([
+            'docs', '+create', '--api-version', 'v2',
+            '--doc-format', 'markdown', '--content', '# 权限检测',
+            *_destination_args(destination),
+            '--as', 'user', '--dry-run', '--json'
+        ], timeout=10)
+        raw = r.stderr or r.stdout
+        if r.returncode != 0:
+            return {'success': False, 'error': _destination_error_hint(raw) or raw or '位置参数无效', 'authHint': _auth_hint(raw)}
+        return {'success': True, 'label': destination.get('label') or '指定位置', 'message': '位置格式有效；同步时会做实际写入权限检查'}
 
     def log_message(self, fmt, *args): pass
 
