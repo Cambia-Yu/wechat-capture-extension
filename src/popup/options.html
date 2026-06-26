@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>微信文章抓取器 · 设置</title>
+<title>微信文章抓取器 · 工作台</title>
 <style>
 :root {
   --green:#07C160; --green-light:#f0fff4; --blue:#1890ff; --blue-light:#e6f7ff;
@@ -12,13 +12,19 @@
   --bg:#f8f9fa; --card:#fff; --r:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+.hidden{display:none!important}
 body{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
   font-size:14px;color:var(--text);background:var(--bg);
-  padding:32px 20px 56px;max-width:760px;margin:0 auto;line-height:1.6;
+  padding:32px 20px 56px;max-width:920px;margin:0 auto;line-height:1.6;
 }
 .header{display:flex;align-items:center;gap:10px;margin-bottom:22px}
 .header h1{font-size:21px;font-weight:700}
+.workspace-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:5px;margin-bottom:16px;background:#edf0f2;border:1px solid var(--border);border-radius:8px}
+.workspace-tab{min-height:38px;border:0;border-radius:6px;background:transparent;color:var(--text2);font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.workspace-tab.active{background:#fff;color:var(--green);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 .card{
   background:var(--card);border:1px solid var(--border);
   border-radius:var(--r);padding:22px 24px;margin-bottom:16px;
@@ -103,18 +109,170 @@ body{
 .favorite-destinations{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .favorite-destinations:empty{display:none}
 .favorite-destination{max-width:100%;padding:6px 10px;border:1px solid #b7eb8f;border-radius:999px;background:var(--green-light);color:var(--green);font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.favorite-destination.clickable{cursor:pointer;background:#fff;color:var(--text2);border-color:var(--border)}
+.favorite-destination.clickable:hover{color:var(--green);border-color:var(--green)}
+.fold-section{border:1px solid var(--border);border-radius:8px;background:#fff;margin-bottom:12px;overflow:hidden}
+.fold-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:0;background:#fafafa;color:var(--text);font:inherit;cursor:pointer;text-align:left}
+.fold-title{font-size:14px;font-weight:650}
+.fold-meta{margin-left:auto;font-size:12px;color:var(--text3)}
+.fold-arrow{color:var(--text3);transition:transform .2s}
+.fold-section.collapsed .fold-arrow{transform:rotate(-90deg)}
+.fold-body{padding:14px}
+.fold-section.collapsed .fold-body{display:none}
+.batch-settings{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:16px}
+.batch-input{width:100%;min-height:150px;resize:vertical;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;background:#fafafa;font:inherit;font-size:13px;line-height:1.6}
+.batch-input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(7,193,96,.08);background:#fff}
+.batch-list{margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
+.batch-empty{padding:18px;color:var(--text3);font-size:13px;text-align:center}
+.batch-row{display:grid;grid-template-columns:108px minmax(0,1fr) minmax(190px,auto);gap:10px;align-items:center;padding:10px 12px;border-top:1px solid #f1f1f1}
+.batch-row:first-child{border-top:0}
+.batch-url{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);font-size:12px}
+.batch-status{font-size:12px;font-weight:650;color:var(--text2)}
+.batch-status.pending{color:var(--orange)}
+.batch-status.running{color:var(--blue)}
+.batch-status.success{color:var(--green)}
+.batch-status.partial_image_failed{color:var(--orange)}
+.batch-status.failed{color:var(--red)}
+.batch-status.sync_failed{color:var(--red)}
+.batch-status.skipped{color:var(--text3)}
+.batch-action{justify-self:end;color:var(--green);font-size:12px;background:transparent;border:0;cursor:pointer;font-weight:650}
+.batch-action:disabled{color:var(--text3);cursor:not-allowed}
+.batch-result-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.batch-result-actions .batch-action{justify-self:auto}
+.fold-body.csv-tools{padding:18px 20px 20px;background:#fff}
+.csv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.csv-title{font-size:13px;font-weight:650;color:var(--text2)}
+.csv-head .btn{min-height:34px;padding:7px 14px}
+.csv-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+.csv-field{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;color:var(--text2);cursor:grab}
+.csv-field.dragging{opacity:.5;border-color:var(--green);background:var(--green-light)}
+.csv-order{width:24px;height:24px;border-radius:999px;background:#f0f2f5;color:var(--text2);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.csv-drag{color:var(--text3);font-size:15px;line-height:1;cursor:grab}
+.csv-field label{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
+.csv-field span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 @media (max-width: 620px) {
   body{padding:20px 12px 40px}
   .card{padding:18px}
   .mode-cards{grid-template-columns:1fr}
+  .workspace-tabs{grid-template-columns:1fr 1fr}
+  .batch-row{grid-template-columns:1fr;gap:4px}
+  .batch-result-actions{justify-content:flex-start}
+  .csv-fields{grid-template-columns:1fr}
   .row{align-items:stretch;flex-direction:column}
 }
 </style>
 </head>
 <body>
 
-<div class="header"><span style="font-size:26px">⚙️</span><h1>设置</h1></div>
+<div class="header"><span style="font-size:26px">🧭</span><h1>微信文章抓取工作台</h1></div>
+
+<div class="workspace-tabs" id="workspaceTabs">
+  <button class="workspace-tab active" data-tab="batch" type="button">批量队列</button>
+  <button class="workspace-tab" data-tab="local" type="button">本地设置</button>
+  <button class="workspace-tab" data-tab="feishu" type="button">飞书同步</button>
+  <button class="workspace-tab" data-tab="notify" type="button">通知</button>
+</div>
+
+<section class="tab-panel active" id="panel-batch">
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-icon">📋</span><h2>批量队列</h2>
+      <span class="tag tag-o" id="batchStateTag">待开始</span>
+    </div>
+    <div class="fold-section collapsed" data-fold-section="batch-settings">
+      <button class="fold-toggle" type="button" data-fold-toggle>
+        <span class="fold-title">本次批量设置</span>
+        <span class="fold-meta">保存方式、位置、图片</span>
+        <span class="fold-arrow">▼</span>
+      </button>
+      <div class="fold-body">
+        <div class="batch-settings">
+          <div>
+            <label style="display:block;font-size:13px;font-weight:500;color:var(--text2);margin-bottom:6px">本次批量保存方式</label>
+            <div class="mode-cards" id="batchModeCards">
+              <div class="mode-card active" data-mode="local">
+                <div class="mode-icon">📁</div>
+                <div class="mode-title">本地</div>
+                <div class="mode-desc">ZIP + Markdown</div>
+              </div>
+              <div class="mode-card" data-mode="feishu">
+                <div class="mode-icon">☁️</div>
+                <div class="mode-title">飞书</div>
+                <div class="mode-desc">只生成云文档</div>
+              </div>
+              <div class="mode-card" data-mode="both">
+                <div class="mode-icon">📁＋☁️</div>
+                <div class="mode-title">两者</div>
+                <div class="mode-desc">本地包 + 云文档</div>
+              </div>
+            </div>
+          </div>
+          <div id="batchLocalOptions" class="fg">
+            <label>本地保存路径</label>
+            <input type="text" id="batchSavePath" placeholder="微信文章存档">
+            <p class="hint">批量任务不会弹出选择位置窗口，会自动保存到「下载」文件夹下的这个子目录。</p>
+          </div>
+          <div id="batchFeishuOptions" class="fg hidden">
+            <label>飞书保存位置</label>
+            <input type="text" id="batchDestinationInput" placeholder="粘贴飞书文件夹链接或知识库文档链接；留空使用默认位置">
+            <p class="hint">只对本次批量任务生效。可粘贴飞书文件夹链接、知识库文档链接，或填写 <code>my_library</code>。</p>
+            <div id="batchFavoriteDestinations" class="favorite-destinations"></div>
+            <div class="btns">
+              <button class="btn btn-g" id="btnBatchMyLibrary" type="button">我的文档库</button>
+              <button class="btn btn-g" id="btnBatchDefaultDestination" type="button">默认位置</button>
+            </div>
+            <label style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+              <span>同步图片</span>
+              <span class="toggle"><input type="checkbox" id="batchIncludeImages" checked><span class="slider"></span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fold-section" data-fold-section="batch-links">
+      <button class="fold-toggle" type="button" data-fold-toggle>
+        <span class="fold-title">链接队列与结果</span>
+        <span class="fold-meta">粘贴链接、开始抓取、查看结果</span>
+        <span class="fold-arrow">▼</span>
+      </button>
+      <div class="fold-body">
+        <div class="fg">
+          <label>公众号文章链接</label>
+          <textarea id="batchUrls" class="batch-input" placeholder="每行一个 mp.weixin.qq.com/s/... 链接"></textarea>
+          <p class="hint">加入队列后点击开始。后台会逐条打开文章、抓取、保存和同步；你切换标签页不会中断队列。</p>
+        </div>
+        <div class="btns">
+          <button class="btn btn-p" id="btnAddBatch">加入队列</button>
+          <button class="btn btn-o" id="btnStartBatch">开始抓取</button>
+          <button class="btn btn-o" id="btnExportBatchCsv">导出 CSV</button>
+          <button class="btn btn-g" id="btnClearBatch">清空队列</button>
+        </div>
+        <div id="batchQueueList" class="batch-list">
+          <div class="batch-empty">暂无批量任务</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fold-section collapsed" data-fold-section="batch-csv">
+      <button class="fold-toggle" type="button" data-fold-toggle>
+        <span class="fold-title">CSV 字段</span>
+        <span class="fold-meta">拖拽排序、勾选字段</span>
+        <span class="fold-arrow">▼</span>
+      </button>
+      <div class="fold-body csv-tools">
+        <div class="csv-head">
+          <div class="csv-title">导出字段顺序</div>
+          <button class="btn btn-g" id="btnResetCsvFields" type="button">恢复默认字段</button>
+        </div>
+        <div id="csvFields" class="csv-fields"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tab-panel" id="panel-local">
 
 <!-- ==================== 保存方式 ==================== -->
 <div class="card">
@@ -160,6 +318,10 @@ body{
   </div>
 
 </div>
+
+</section>
+
+<section class="tab-panel" id="panel-feishu">
 
 <!-- ==================== 飞书同步 ==================== -->
 <div class="card">
@@ -225,6 +387,10 @@ body{
   </div>
 </div>
 
+</section>
+
+<section class="tab-panel" id="panel-notify">
+
 <!-- ==================== 通知 ==================== -->
 <div class="card">
   <div class="card-hd"><span class="card-icon">🔔</span><h2>通知</h2></div>
@@ -236,6 +402,8 @@ body{
     <p class="hint">抓取完成或失败时弹出 Chrome 通知</p>
   </div>
 </div>
+
+</section>
 
 <div class="toast" id="toast"></div>
 <script src="options.js"></script>

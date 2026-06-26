@@ -10,6 +10,7 @@ import { Zipper } from './lib/zipper.js';
 let _capturing = false;
 let _captureCache = null;
 let _companionCache = { available: false, checkedAt: 0, detail: null };
+let _batchRunning = false;
 const CACHE_TTL = 30000;
 
 // ============================================================
@@ -26,6 +27,10 @@ chrome.runtime.onMessage.addListener((req, sender, sendResp) => {
       return true;
     case 'getCaptureCache': sendResp(_captureCache || {success:false}); return false;
     case 'getCapturingStatus': sendResp({capturing:_capturing}); return false;
+    case 'startBatchQueue':
+      if (_capturing || _batchRunning) { sendResp({success:false, error:'已有抓取任务正在运行'}); return false; }
+      ok(runBatchQueue(req.config || {}));
+      return true;
     case 'syncToFeishu': ok(handleFeishuSync(req.data, { includeImages: req.includeImages !== false })); return true;
     case 'checkFeishuStatus': ok(checkFeishuStatus()); return true;
     case 'testFeishuConnection': ok(testConnection(req.config)); return true;
@@ -34,6 +39,183 @@ chrome.runtime.onMessage.addListener((req, sender, sendResp) => {
     case 'clearFeishuDestinationFavorites': ok(clearFeishuDestinationFavorites()); return true;
   }
 });
+
+// ============================================================
+// 批量队列
+// ============================================================
+
+async function runBatchQueue(config = {}) {
+  _batchRunning = true;
+  try {
+    const batchRun = normalizeBatchRunConfig(config);
+    const saveCfg = batchRun.saveConfig;
+    if (['local', 'both'].includes(saveCfg.mode || 'local') && saveCfg.showSaveDialog) {
+      return {success:false, error:'批量抓取需要关闭「每次弹窗选择位置」，否则保存对话框会阻塞队列。'};
+    }
+
+    let queue = await getBatchQueue();
+    const jobs = queue.filter(item => ['pending', 'retry'].includes(item.status));
+    if (!jobs.length) return {success:false, error:'队列里没有待抓取的文章'};
+
+    emitBatchProgress('start', `开始处理 ${jobs.length} 篇文章`);
+    for (const job of jobs) {
+      queue = await getBatchQueue();
+      const latest = queue.find(item => item.id === job.id);
+      if (!latest || latest.status === 'skipped') continue;
+
+      await updateBatchItem(job.id, {
+        status:'running',
+        statusText:'抓取中',
+        mode:batchRun.saveConfig.mode,
+        savePath:batchRun.saveConfig.savePath,
+        destinationLabel:batchRun.destination?.label || '',
+        includeImages:batchRun.includeImages,
+        startedAt:Date.now(),
+        error:''
+      });
+      emitBatchProgress('running', latest.url || job.url);
+
+      let tabId = null;
+      try {
+        const tab = await chrome.tabs.create({url:job.url, active:false});
+        tabId = tab.id;
+        await waitForTabLoaded(tabId, 45000);
+        await sleep(800);
+
+        _capturing = true;
+        const result = await handleCapture(tabId, {
+          includeImages: batchRun.includeImages,
+          saveConfig: batchRun.saveConfig,
+          destination: batchRun.destination
+        });
+        _capturing = false;
+
+        if (!result?.success) {
+          const syncFailed = isSyncFailure(result);
+          await updateBatchItem(job.id, {
+            status:syncFailed ? 'sync_failed' : 'failed',
+            statusText:syncFailed ? '同步失败' : '正文失败',
+            mode:batchRun.saveConfig.mode,
+            error:result?.error || '抓取失败',
+            finishedAt:Date.now()
+          });
+          continue;
+        }
+
+        const imageFailed = Array.isArray(result.imageFailures) && result.imageFailures.length > 0;
+        await updateBatchItem(job.id, {
+          status:imageFailed ? 'partial_image_failed' : 'success',
+          statusText:imageFailed ? '图片部分失败' : '成功',
+          title:result.title || '',
+          author:result.author || '',
+          publishTime:result.publishTime || '',
+          sourceUrl:result.sourceUrl || job.url,
+          feishuUrl:result.feishuUrl || '',
+          localPath:result.localPath || result.localFilename || '',
+          downloadId:Number.isInteger(result.downloadId) ? result.downloadId : null,
+          mode:batchRun.saveConfig.mode,
+          savePath:batchRun.saveConfig.savePath,
+          destinationLabel:batchRun.destination?.label || '',
+          includeImages:batchRun.includeImages,
+          imageCount:result.imageCount || 0,
+          totalImages:result.totalImages || 0,
+          error:result.feishuError || '',
+          finishedAt:Date.now()
+        });
+      } catch (e) {
+        _capturing = false;
+        await updateBatchItem(job.id, {
+          status:'failed',
+          statusText:'正文失败',
+          mode:batchRun.saveConfig.mode,
+          error:e?.message || String(e) || '抓取失败',
+          finishedAt:Date.now()
+        });
+      } finally {
+        if (tabId) await chrome.tabs.remove(tabId).catch(()=>{});
+      }
+    }
+    emitBatchProgress('done', '批量队列处理完成');
+    return {success:true};
+  } finally {
+    _capturing = false;
+    _batchRunning = false;
+  }
+}
+
+function normalizeBatchRunConfig(config = {}) {
+  const mode = ['local', 'feishu', 'both'].includes(config.mode) ? config.mode : 'local';
+  const destinationInput = String(config.destinationInput || '').trim();
+  return {
+    includeImages: config.includeImages !== false,
+    destination: (mode === 'feishu' || mode === 'both') ? parseFeishuDestination(destinationInput) : {mode:'default', label:'默认位置'},
+    saveConfig: {
+      mode,
+      savePath: String(config.savePath || '微信文章存档').trim(),
+      showSaveDialog: false
+    }
+  };
+}
+
+function isSyncFailure(result) {
+  const text = `${result?.error || ''} ${result?.authHint || ''}`;
+  return !!(result?.needConfig || /飞书|同步|lark|API|凭证|权限|位置/.test(text));
+}
+
+async function getBatchQueue() {
+  const s = await chrome.storage.local.get('batchQueue');
+  return Array.isArray(s.batchQueue) ? s.batchQueue : [];
+}
+
+async function updateBatchItem(id, patch) {
+  const queue = await getBatchQueue();
+  const next = queue.map(item => item.id === id ? {...item, ...patch} : item);
+  await chrome.storage.local.set({batchQueue:next});
+  chrome.runtime.sendMessage({action:'batchProgress', queue:next, itemId:id, patch}).catch(()=>{});
+  return next;
+}
+
+function emitBatchProgress(step, detail) {
+  chrome.runtime.sendMessage({action:'batchProgress', step, detail}).catch(()=>{});
+}
+
+function waitForTabLoaded(tabId, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(listener);
+    };
+    const listener = (updatedTabId, info) => {
+      if (updatedTabId === tabId && info.status === 'complete') {
+        cleanup();
+        resolve();
+      }
+    };
+    const timer = setTimeout(() => {
+      if (done) return;
+      cleanup();
+      reject(new Error('文章页面加载超时'));
+    }, timeoutMs);
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.get(tabId).then(tab => {
+      if (!done && tab.status === 'complete') {
+        cleanup();
+        resolve();
+      }
+    }).catch(() => {
+      if (!done) {
+        cleanup();
+        reject(new Error('无法打开文章页面'));
+      }
+    });
+  });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // ============================================================
 // 进度 & 通知
@@ -58,7 +240,7 @@ async function notify(title, msg, ok=true) {
 
 async function handleCapture(tabId, options = {}) {
   const settings = await chrome.storage.local.get(['saveConfig','feishuConfig','behaviorConfig']);
-  const saveCfg = settings.saveConfig || {mode:'local',savePath:'微信文章存档',showSaveDialog:false};
+  const saveCfg = options.saveConfig || settings.saveConfig || {mode:'local',savePath:'微信文章存档',showSaveDialog:false};
   const mode = saveCfg.mode || 'local';
 
   progress('extracting','正在提取文章内容...');
@@ -299,7 +481,7 @@ function buildZipFiles(st,md,ims,art){
 
 async function handleFeishuSync(data, options = {}) {
   const settings = await chrome.storage.local.get('feishuDestination');
-  const destination = normalizeDestination(settings.feishuDestination);
+  const destination = normalizeDestination(options.destination || settings.feishuDestination);
   const payload = buildFeishuPayload(data, {...options, destination});
   const companionOk = await checkCompanionHealth();
   if (companionOk) {

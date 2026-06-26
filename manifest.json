@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "微信文章抓取器",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "一键抓取微信公众号文章，保存为 Markdown + 图片到本地，支持同步至飞书云文档",
   "author": "WorkBuddy",
   "icons": {
@@ -23,7 +23,8 @@
     "storage",
     "downloads",
     "scripting",
-    "notifications"
+    "notifications",
+    "tabs"
   ],
   "host_permissions": [
     "*://mp.weixin.qq.com/*",
